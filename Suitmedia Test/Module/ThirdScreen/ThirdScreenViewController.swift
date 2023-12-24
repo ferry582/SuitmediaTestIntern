@@ -12,7 +12,7 @@ protocol ThirdScreenDelegate: AnyObject {
 }
 
 class ThirdScreenViewController: UIViewController {
-
+    
     // MARK: -Variables
     private var viewModel: ThirdScreenViewModel
     weak var delegate: ThirdScreenDelegate?
@@ -36,7 +36,7 @@ class ThirdScreenViewController: UIViewController {
     private let separatorView = SeparatorView()
     
     private let usersTableView: UITableView = {
-       let table = UITableView()
+        let table = UITableView()
         table.register(UserTableViewCell.self, forCellReuseIdentifier: UserTableViewCell.identifier)
         table.register(LoadingTableViewCell.self, forCellReuseIdentifier: LoadingTableViewCell.identifier)
         table.separatorStyle = .none
@@ -68,14 +68,16 @@ class ThirdScreenViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-    
+        
         usersTableView.dataSource = self
         usersTableView.delegate = self
         
         setupNavBar()
         setupView()
         
-        viewModel.getUserList(page: currentPage)
+        Task {
+            await viewModel.getUserList(page: currentPage)
+        }
         
         // Observe list users data
         viewModel.listUsers.bind { users in
@@ -84,11 +86,13 @@ class ThirdScreenViewController: UIViewController {
         
         // Observe refresh state
         viewModel.isRefreshing.bind { isRefreshing in
-            if isRefreshing! {
-                self.usersTableView.refreshControl?.beginRefreshing()
-            } else {
-                self.usersTableView.refreshControl?.endRefreshing()
-                self.usersTableView.reloadData()
+            DispatchQueue.main.async {
+                if isRefreshing! {
+                    self.usersTableView.refreshControl?.beginRefreshing()
+                } else {
+                    self.usersTableView.refreshControl?.endRefreshing()
+                    self.usersTableView.reloadData()
+                }
             }
         }
     }
@@ -130,9 +134,11 @@ class ThirdScreenViewController: UIViewController {
     @objc private func tableViewRefreshed() {
         currentPage = 1
         viewModel.removeAllListUsers()
-        viewModel.getUserList(page: currentPage)
+        Task {
+            await viewModel.getUserList(page: currentPage)
+        }
     }
-
+    
 }
 
 extension ThirdScreenViewController: UITableViewDataSource, UITableViewDelegate {
@@ -155,13 +161,18 @@ extension ThirdScreenViewController: UITableViewDataSource, UITableViewDelegate 
     func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
         if currentPage < viewModel.totalPage && indexPath.row == listUsers.count-1 {
             currentPage += 1
-            viewModel.getUserList(page: currentPage)
+            Task {
+                await viewModel.getUserList(page: currentPage)
+            }
         }
     }
     
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         self.delegate?.userSelected(name: "\(listUsers[indexPath.row].firstName) \(listUsers[indexPath.row].lastName)")
         self.navigationController?.popViewController(animated: true)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            tableView.deselectRow(at: indexPath, animated: true)
+        }
     }
     
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {

@@ -7,9 +7,14 @@
 
 import Foundation
 
+enum APIServiceError: Error {
+    case serverError(String = "Server erro occured")
+    case decodingError(String = "Error parsing server response.")
+}
+
 class APIService: NSObject {
     
-    func getListUsers(page: Int, completion: @escaping (UserResponse) -> ()) {
+    func getListUsers(page: Int) async throws -> UserResponse {
         
         var url: URL? {
             var components = URLComponents()
@@ -24,18 +29,18 @@ class APIService: NSObject {
             return components.url
         }
         
-        URLSession.shared.dataTask(with: url!) { (data, urlResponse, error) in
-            if let data = data {
-                
-                let jsonDecoder = JSONDecoder()
-                
-                let empData = try! jsonDecoder.decode(UserResponse.self, from: data)
-                completion(empData)
-            }
-            
-            if let error = error {
-                print(error)
-            }
-        }.resume()
+        let (data, response) = try await URLSession.shared.data(from: url!)
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw APIServiceError.serverError()
+        }
+        
+        do {
+            let jsonDecoder = JSONDecoder()
+            let usersData = try jsonDecoder.decode(UserResponse.self, from: data)
+            return usersData
+        } catch{
+            throw APIServiceError.decodingError()
+        }
     }
 }

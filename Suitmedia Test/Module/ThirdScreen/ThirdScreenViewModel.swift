@@ -20,17 +20,22 @@ class ThirdScreenViewModel {
         self.isRefreshing.value = false
     }
     
-    func getUserList(page: Int) { //tambahin async
+    func getUserList(page: Int) async { //tambahin async
         self.isRefreshing.value = true
-        apiService.getListUsers(page: page) { response in
-            self.totalPage = response.totalPages
+        
+        do {
+            let result = try await apiService.getListUsers(page: page)
+            self.totalPage = result.totalPages
             
             if page <= self.totalPage {
-                self.listUsers.value?.append(contentsOf: self.mapUserResponseToModel(from: response))
+                self.listUsers.value?.append(contentsOf: self.mapUserResponseToModel(from: result))
             }
             
-            print("total fetch page \(page): \(response.data.count)")
+            print("total fetch page \(page): \(result.data.count)")
+        } catch {
+            print(error.localizedDescription)
         }
+        
         self.isRefreshing.value = false
     }
     
